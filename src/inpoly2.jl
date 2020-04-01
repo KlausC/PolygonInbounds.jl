@@ -1,5 +1,5 @@
 """
-    function inpoly2(vert, node, edge[, fTOL])
+    function inpoly2(vert, node, edge[, tol])
 
 Check all points defined by `vert` are inside, outside or on bounds of
 polygon defined by `node` and `edge`.
@@ -9,7 +9,7 @@ and the y-coordinates in the second column.
 the index of the starting node, the second column the index of the ending node.
 The polygon needs to be closed. It may contain unconnected cycles.
 """
-function inpoly2(vert::AbstractMatrix{T}, node::AbstractMatrix{T}, edge::AbstractMatrix{<:Integer}=Int[], fTOL::T=eps(T)^0.85) where T<:Real
+function inpoly2(vert::AbstractMatrix{T}, node::AbstractMatrix{T}, edge::AbstractMatrix{<:Integer}=Int[]; atol::T=0.0, rtol::T=eps(T)^0.85) where T<:Real
 
     nnod = size(node,1)
     nvrt = size(vert,1)
@@ -28,66 +28,55 @@ function inpoly2(vert::AbstractMatrix{T}, node::AbstractMatrix{T}, edge::Abstrac
         throw(ArgumentError("inpoly2:invalidInputs: Invalid EDGE input array."))
     end
 
-#-------------- flip to ensure the y-axis is the "long" axis
-    vmin = minimum(vert,dims=1)
-    vmax = maximum(vert,dims=1)
+    # flip cooerdinates so y-span of points >= x-span of points
+    vmin = minimum(vert, dims=1)
+    vmax = maximum(vert, dims=1)
     ddxy = vmax - vmin
-
-    lbar = sum(ddxy) / 2
-
     if ddxy[1] > ddxy[2]
         vert[:,:] = vert[:,[2,1]]
         node[:,:] = node[:,[2,1]]
     end
 
-#----------------------------------- sort points via y-value
-    swap = node[edge[:,2],2] .< node[edge[:,1],2]
-    edge[swap,:] = edge[swap,[2,1]]
+    lbar = sum(ddxy) / 2
 
     ivec = sortperm(view(vert,:,2))
     vert = view(vert,ivec,:)
+    stat = fill(-1, nvrt) # -1 outside, 0 onbound, +1 inside
 
-    stat, bnds = inpoly2_mat(vert, node, edge, fTOL, lbar)
-    stat[ivec] = stat
-    bnds[ivec] = bnds
-    stat, bnds
+    tol = max(abs(rtol * lbar), abs(atol))
+    inpoly2!(vert, node, edge, tol, view(stat, ivec))
+    stat
 end
 
 """
-    inpoly2_mat(vert, node, edge, fTol, lbar)
+    inpoly2_mat(vert, node, edge, fTol, stats)
 
 INPOLY2_MAT the local m-code version of the crossing-number
 test. Loop over edges; do a binary-search for the first ve-
 rtex that intersects with the edge y-range; do crossing-nu-
 mber comparisons; break when the local y-range is exceeded.
 """
-function inpoly2_mat(vert, node, edge, fTOL, lbar)
-
-    veps = fTOL * lbar
-
+function inpoly2!(vert, node, edge, veps::AbstractFloat, stat::AbstractVector{<:Integer})
     nvrt = size(vert, 1) # the points to be checked
     nnod = size(node, 1) # the vertices of the polygon
     nedg = size(edge, 1) # the indices of the vertices connected
-
-    stat = falses(nvrt)
-    bnds = falses(nvrt)
 
     #----------------------------------- loop over polygon edges
     for epos = 1:nedg
 
         inod = edge[epos,1]  # from
         jnod = edge[epos,2]  # to
+        if node[inod,2] > node[jnod,2]
+            inod, jnod = jnod, inod
+        end
 
         #------------------------------- calc. edge bounding-box
-        yone = node[inod,2]
-        ytwo = node[jnod,2]
-        xone = node[inod,1]
-        xtwo = node[jnod,1]
+        xone, yone = node[inod,:]
+        xtwo, ytwo = node[jnod,:]
 
         xmin = min(xone, xtwo) - veps
         xmax = max(xone, xtwo) + veps
-
-        ymin = yone - veps # assumption yone <= ytwo
+        ymin = yone - veps
         ymax = ytwo + veps
 
         ydel = ytwo - yone
@@ -95,7 +84,7 @@ function inpoly2_mat(vert, node, edge, fTOL, lbar)
         feps = veps * hypot(xdel, ydel)
 
         #------------------------------- find top vert[:,2] < ymin
-        ilow = +1
+        ilow = 1
         iupp = nvrt
         while ilow < iupp - 1    # binary search
             imid = ilow + (iupp-ilow) ÷ 2
@@ -105,48 +94,48 @@ function inpoly2_mat(vert, node, edge, fTOL, lbar)
                 iupp = imid
             end
         end
-        if vert[ilow,2] >= ymin
+        while ilow > 0 && vert[ilow,2] >= ymin
             ilow = ilow - 1
         end
 
         #------------------------------- calc. edge-intersection
+        # loop over all points with y ∈ [ymin,ymax]
         for jpos = ilow+1:nvrt
-            bnds[jpos] && continue
+            stat[jpos] == 0 && continue
+            xpos, ypos = vert[jpos,:]
+            ypos > ymax && break 
 
-            xpos = vert[jpos,1]
-            ypos = vert[jpos,2]
-
-            if ypos <= ymax
-                if xpos >= xmin
-                    if xpos <= xmax
-                    #------------------- compute crossing number
+            if xpos >= xmin
+                if xpos <= xmax
+                    #--------- inside extended bounding box of edge
                     mul1 = ydel * (xpos - xone)
                     mul2 = xdel * (ypos - yone)
-
-                        if feps >= abs(mul2 - mul1)
-                            #------------------- BNDS -- approx. on edge
-                            bnds[jpos]= true
-                            stat[jpos]= true
-
-                        elseif mul1 < mul2
-                            if ypos >= yone && ypos < ytwo
-                                #------------------- left of edge
-                                stat[jpos] = ~stat[jpos]
-                            end
+                    if abs(mul2 - mul1) <= feps
+                        #------- distance from line through edge less veps
+                        if !(xdel * (xpos - xone) < ydel * (yone - ypos) &&
+                             hypot(xpos- xone, ypos - yone) > veps ||
+                             xdel * (xpos - xtwo) > ydel * (ytwo - ypos) &&
+                             hypot(xpos- xtwo, ypos - ytwo) > veps)
+                            # ---- round boundaries around endpoints of edge
+                            stat[jpos]= 0
+                        elseif mul1 < mul2 && yone <= ypos < ytwo
+                            #----- left of line && ypos exact to avoid multiple counting
+                            stat[jpos] = -stat[jpos]
                         end
-                    end
-                else
-                    if (ypos >= yone && ypos <  ytwo)
-                        #------------------- advance crossing number
-                        stat[jpos] = ~stat[jpos]
+                    elseif mul1 < mul2 && yone <= ypos < ytwo
+                        #----- left of line && ypos exact to avoid multiple counting
+                        stat[jpos] = -stat[jpos]
                     end
                 end
-            else
-                break # done -- due to the sort
+            else # xpos < xmin - left of bounding box
+                if yone <= ypos <  ytwo
+                    #----- ypos exact to avoid multiple counting
+                    stat[jpos] = -stat[jpos]
+                end
             end
         end
     end
-    stat, bnds
+    stat
 end
 
 #=

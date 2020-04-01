@@ -3,7 +3,49 @@
 [![Build Status](https://travis-ci.com/KlausC/PolygonInbounds.jl.svg?branch=master)](https://travis-ci.com/KlausC/PolygonInbounds.jl)
 [![Codecov](https://codecov.io/gh/KlausC/PolygonInbounds.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/KlausC/PolygonInbounds.jl)
 
-Only purpose of the is to implement function INPOLY2 in Julia.
+### Purpose
+
+Only purpose of the is to implement and improve function INPOLY2 in Julia.
+
+The implementation claims to be fast for multiple points to check at once.
+The algorithm was developed by Darren Engwirda in 2017.
+
+`stats = inpoly2(points, nodes, edges[, atol=, rtol=])` determines for each point in `points`
+a status of
+
+* -1 outside polygon
+* +1 inside polygon 
+* 0  on boundary of polygon
+
+A point is considered on boundary, if its Euclidian distance to any of the edges
+of the polygon is less than `tol = max(atol, rtol*sizefactor)`.
+
+`points` and `nodes` are matrices consisting of x, y in first and second column.
+`edges` is a matrix of indices into `nodes`, which define the egdges of the polygon.
+The polygon may be unconnected and self-overlapping.
+
+Link to original Matlab sources: [inpoly2.m](https://github.com/dengwirda/inpoly)
+
+
+### Usage:
+
+```julia
+
+]add //https://github.com/KlausC/PolygonInbounds.jl
+
+using PolygonInbounds
+
+polydemo.(1:4)
+
+points = [0.05 0.0; 1 1; -1 1]
+nodes =  [0.0 0; 0 10; 10 10; 10 0]
+edges = [1 2; 2 3; 3 4; 4 1]
+tol = 1e-1
+
+stat = inpoly2(points, nodes, edges, atol=tol)
+
+```
+
 It follows the docu from the original Matlab implementation.
 
 ```
