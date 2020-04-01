@@ -84,10 +84,8 @@ function inpoly2_mat(vert, node, edge, fTOL, lbar)
         xone = node[inod,1]
         xtwo = node[jnod,1]
 
-        xmin = min(xone,xtwo)
-        xmax = max(xone,xtwo)
-
-        xmax = xmax + veps;
+        xmin = min(xone, xtwo) - veps
+        xmax = max(xone, xtwo) + veps
 
         ymin = yone - veps # assumption yone <= ytwo
         ymax = ytwo + veps
