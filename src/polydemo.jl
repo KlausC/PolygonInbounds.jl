@@ -18,7 +18,7 @@ function polydemo(id::Integer=1; args...)
     [demo1, demo2, demo3, demo4][id](;args...)
 end
 
-function demo1(;tol=1e-2, dx=0.02)
+function demo1(;tol=1e-2, dx=0.02, do_plot=true)
     println("""
         INPOLY2 provides fast point-in-polygon queries for ob-\n 
         jects in R^2. Like INPOLYGON, it detects points inside\n
@@ -59,13 +59,16 @@ function demo1(;tol=1e-2, dx=0.02)
     xpos, ypos = [p[1] for p in a], [p[2] for p in a]
 
     stat = inpoly2([xpos ypos], node, edge, atol=tol)
-    p = plot(title="demo1 (dx $dx, atol $tol)", legend=:topleft)
-    p = plotpoints(p, xpos, ypos, stat)
-    p = plotpolygon(p, node, edge)
-    display(p)
+    if do_plot
+        p = plot(title="demo1 (dx $dx, atol $tol)", legend=:topleft)
+        p = plotpoints(p, xpos, ypos, stat)
+        p = plotpolygon(p, node, edge)
+        display(p)
+    end
+    stat
 end
 
-function demo2(;r=2500, tol=1e-3)
+function demo2(;r=2500, tol=1e-3, do_plot=true)
 #-----------------------------------------------------------
     println("""
         INPOLY2 supports multiply-connected geometries, consi-\n
@@ -75,13 +78,16 @@ function demo2(;r=2500, tol=1e-3)
 
     xpos, ypos, node, edge = testdata("lakes.msh", r)
     stat = inpoly2([xpos ypos], node, edge, rtol=tol) 
-    p = plot(title="demo2 - lakes (r $r, rtol $tol)", legend=:topleft)
-    p = plotpolygon(p, node, edge)
-    p = plotpoints(p, xpos, ypos, stat)
-    display(p)
+    if do_plot
+        p = plot(title="demo2 - lakes (r $r, rtol $tol)", legend=:topleft)
+        p = plotpolygon(p, node, edge)
+        p = plotpoints(p, xpos, ypos, stat)
+        display(p)
+    end
+    stat
 end
 
-function demo3(;r=2500, tol=1e-3)
+function demo3(;r=2500, tol=1e-3, do_plot=true)
     println("""
         INPOLY2 implements a "pre-sorted" variant of the cros-\n
         sing-number test - returning queries in approximately \n
@@ -101,14 +107,16 @@ function demo3(;r=2500, tol=1e-3)
     =#
     println("inpoly2")
     stat = @time inpoly2([xpos ypos], node, edge, rtol=tol)
-
-    p = plot(title="demo3 - coast (r $r, rtol $tol)", legend=:topleft)
-    p = plotpolygon(p, node, edge)
-    p = plotpoints(p, xpos, ypos, stat)
-    display(p)
+    if do_plot
+        p = plot(title="demo3 - coast (r $r, rtol $tol)", legend=:topleft)
+        p = plotpolygon(p, node, edge)
+        p = plotpoints(p, xpos, ypos, stat)
+        display(p)
+    end
+    stat
 end
 
-function demo4(;r=5*10^5, tol=1e-2)
+function demo4(;r=5*10^5, tol=1e-2, do_plot=true)
     println("""
         INPOLY2 provides fast point-in-polygon queries for ob-\n 
         jects in R^2. Like INPOLYGON, it detects points inside\n
@@ -122,10 +130,13 @@ function demo4(;r=5*10^5, tol=1e-2)
     xpos, ypos = rpts[:,1], rpts[:,2]
 
     stat = inpoly2(rpts, node, edge, atol=tol)
-    p = plot(title="demo4 (r $r, atol $tol)", legend=:topleft)
-    p = plotpoints(p, xpos, ypos, stat)
-    p = plotpolygon(p, node, edge)
-    display(p)
+    if do_plot
+        p = plot(title="demo4 (r $r, atol $tol)", legend=:topleft)
+        p = plotpoints(p, xpos, ypos, stat)
+        p = plotpolygon(p, node, edge)
+        display(p)
+    end
+    stat
 end
 
 #----- Utility functions

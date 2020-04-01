@@ -41,10 +41,11 @@ function inpoly2(vert::AbstractMatrix{T}, node::AbstractMatrix{T}, edge::Abstrac
 
     ivec = sortperm(view(vert,:,2))
     vert = view(vert,ivec,:)
-    stat = fill(-1, nvrt) # -1 outside, 0 onbound, +1 inside
+    stat = view(fill(Int8(-1), nvrt), ivec) # -1 outside, 0 onbound, +1 inside
+    statv = view(stat, ivec)
 
     tol = max(abs(rtol * lbar), abs(atol))
-    inpoly2!(vert, node, edge, tol, view(stat, ivec))
+    inpoly2!(vert, node, edge, tol, statv)
     stat
 end
 
