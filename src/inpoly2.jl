@@ -9,43 +9,40 @@ and the y-coordinates in the second column.
 the index of the starting node, the second column the index of the ending node.
 The polygon needs to be closed. It may contain unconnected cycles.
 """
-function inpoly2(vert::AbstractMatrix{T}, node::AbstractMatrix{T}, edge::AbstractMatrix{<:Integer}=Int[]; atol::T=0.0, rtol::T=eps(T)^0.85) where T<:Real
+function inpoly2(vert::AbstractMatrix{T},
+                 node::AbstractMatrix{T},
+                 edge::AbstractArray{<:Integer,N}=zeros(Int);
+                 atol::T=0.0, rtol::T=eps(T)^0.85) where {T<:Real,N}
 
     nnod = size(node,1)
     nvrt = size(vert,1)
-    if isempty(edge)
-        edge = [(1:nnod-1)  (2:nnod); nnod 1]
-    else
-        edge = copy(edge)
+    if N == 0
+        edge = [1:nnod-1 2:nnod; nnod 1]
+    elseif N == 1
+        edge = [1:length(edge) edge]
     end
-    node = copy(node)
-
-    if size(node,2) != 2 || size(edge,2) != 2 || size(vert,2) != 2
-        throw(ArgumentError("inpoly2:incorrectDimensions"))
+    checkfor2(v, s) = size(v,2) == 2 || throw(ArgumentError("array $s needs 2 columns"))
+    checkfor2(node, "node"); checkfor2(edge, "edge"); checkfor2(vert, "vert")
+    if size(edge, 1) != nnod
+        throw(ArgumentError("edges need same length as nodes"))
+    end
+    if N == 2 && !isperm(view(edge,:,1)) || N >= 1 && !isperm(view(edge,:,2))
+        throw(ArgumentError("edges are not permutation"))
     end
 
-    if minimum(edge) < 1 || maximum(edge) > nnod
-        throw(ArgumentError("inpoly2:invalidInputs: Invalid EDGE input array."))
-    end
-
-    # flip cooerdinates so y-span of points >= x-span of points
     vmin = minimum(vert, dims=1)
     vmax = maximum(vert, dims=1)
     ddxy = vmax - vmin
-    if ddxy[1] > ddxy[2]
-        vert[:,:] = vert[:,[2,1]]
-        node[:,:] = node[:,[2,1]]
-    end
-
     lbar = sum(ddxy) / 2
-
-    ivec = sortperm(view(vert,:,2))
+    # flip coordinates so y-span of points >= x-span of points
+    flip = ddxy[1] > ddxy[2]
+    ivec = sortperm(view(vert,:,2-flip))
     vert = view(vert,ivec,:)
     stat = view(fill(Int8(-1), nvrt), ivec) # -1 outside, 0 onbound, +1 inside
     statv = view(stat, ivec)
 
     tol = max(abs(rtol * lbar), abs(atol))
-    inpoly2!(vert, node, edge, tol, statv)
+    inpoly2!(vert, node, edge, flip, tol, statv)
     stat
 end
 
@@ -57,23 +54,27 @@ test. Loop over edges; do a binary-search for the first ve-
 rtex that intersects with the edge y-range; do crossing-nu-
 mber comparisons; break when the local y-range is exceeded.
 """
-function inpoly2!(vert, node, edge, veps::AbstractFloat, stat::AbstractVector{<:Integer})
+function inpoly2!(vert, node, edge, flip::Bool, veps::AbstractFloat, stat::AbstractVector{<:Integer})
     nvrt = size(vert, 1) # the points to be checked
     nnod = size(node, 1) # the vertices of the polygon
     nedg = size(edge, 1) # the indices of the vertices connected
-
+    
+    ix = flip + 1
+    iy = 2 - flip
     #----------------------------------- loop over polygon edges
     for epos = 1:nedg
 
         inod = edge[epos,1]  # from
         jnod = edge[epos,2]  # to
-        if node[inod,2] > node[jnod,2]
+        if node[inod,iy] > node[jnod,iy]
             inod, jnod = jnod, inod
         end
 
         #------------------------------- calc. edge bounding-box
-        xone, yone = node[inod,:]
-        xtwo, ytwo = node[jnod,:]
+        xone = node[inod,ix]
+        yone = node[inod,iy]
+        xtwo = node[jnod,ix]
+        ytwo = node[jnod,iy]
 
         xmin = min(xone, xtwo) - veps
         xmax = max(xone, xtwo) + veps
@@ -84,18 +85,18 @@ function inpoly2!(vert, node, edge, veps::AbstractFloat, stat::AbstractVector{<:
         xdel = xtwo - xone
         feps = veps * hypot(xdel, ydel)
 
-        #------------------------------- find top vert[:,2] < ymin
+        #------------------------------- find top vert[:,iy] < ymin
         ilow = 1
         iupp = nvrt
         while ilow < iupp - 1    # binary search
             imid = ilow + (iupp-ilow) ÷ 2
-            if vert[imid,2] < ymin
+            if vert[imid,iy] < ymin
                 ilow = imid
             else
                 iupp = imid
             end
         end
-        while ilow > 0 && vert[ilow,2] >= ymin
+        while ilow > 0 && vert[ilow,iy] >= ymin
             ilow = ilow - 1
         end
 
@@ -103,8 +104,9 @@ function inpoly2!(vert, node, edge, veps::AbstractFloat, stat::AbstractVector{<:
         # loop over all points with y ∈ [ymin,ymax]
         for jpos = ilow+1:nvrt
             stat[jpos] == 0 && continue
-            xpos, ypos = vert[jpos,:]
+            ypos = vert[jpos,iy]
             ypos > ymax && break 
+            xpos = vert[jpos,ix]
 
             if xpos >= xmin
                 if xpos <= xmax

@@ -18,8 +18,9 @@ function polydemo(id::Integer=1; args...)
     [demo1, demo2, demo3, demo4][id](;args...)
 end
 
+#-----------------------------------------------------------
 function demo1(;tol=1e-2, dx=0.02, do_plot=true)
-    println("""
+    do_plot && println("""
         INPOLY2 provides fast point-in-polygon queries for ob-\n 
         jects in R^2. Like INPOLYGON, it detects points inside\n
         and on the boundary of polygonal geometries.\n
@@ -68,9 +69,9 @@ function demo1(;tol=1e-2, dx=0.02, do_plot=true)
     stat
 end
 
-function demo2(;r=2500, tol=1e-3, do_plot=true)
 #-----------------------------------------------------------
-    println("""
+function demo2(;r=2500, tol=1e-3, do_plot=true)
+    do_plot && println("""
         INPOLY2 supports multiply-connected geometries, consi-\n
         sting of arbitrarily nested sets of outer + inner bou-\n
         ndaries.\n
@@ -87,8 +88,9 @@ function demo2(;r=2500, tol=1e-3, do_plot=true)
     stat
 end
 
+#-----------------------------------------------------------
 function demo3(;r=2500, tol=1e-3, do_plot=true)
-    println("""
+    do_plot && println("""
         INPOLY2 implements a "pre-sorted" variant of the cros-\n
         sing-number test - returning queries in approximately \n
         O((N+M)*LOG(N)) time for configurations consisting of \n
@@ -116,8 +118,9 @@ function demo3(;r=2500, tol=1e-3, do_plot=true)
     stat
 end
 
+#-----------------------------------------------------------
 function demo4(;r=5*10^5, tol=1e-2, do_plot=true)
-    println("""
+    do_plot && println("""
         INPOLY2 provides fast point-in-polygon queries for ob-\n 
         jects in R^2. Like INPOLYGON, it detects points inside\n
         and on the boundary of polygonal geometries.\n
