@@ -19,58 +19,34 @@ function polydemo(id::Integer=1; args...)
 end
 
 #-----------------------------------------------------------
-function demo1(;tol=1e-2, dx=0.02, do_plot=true)
+function demo1(;tol=1e-2, r=10^5, do_plot=true, which=3)
     do_plot && println("""
         INPOLY2 provides fast point-in-polygon queries for ob-\n 
         jects in R^2. Like INPOLYGON, it detects points inside\n
         and on the boundary of polygonal geometries.\n
 """)
 
-    node = [
-        2.0 0       # outer nodes
-        8 4
-        4 8
-        0 4
-        5 0
-        7 4
-        3 6
-        6 1
-        3 3         # inner nodes
-        5 3
-        5 5
-        3 5
-        ] ;
-    edge = [
-        1 2         # outer edges
-        2 3
-        3 4
-        4 5
-        5 6
-        6 7
-        7 8
-        8 1
-        9 10        # inner edges
-        10 11
-        11 12
-        12 9
-        ] ;
+    node = [ 2.0 0; 8 4; 4 8; 0 4; 5 0; 7 4; 3 6; 6 1 # inner nodes
+             3 3; 5 3; 5 5; 3 5 ]                     # outer nodes  
+    edge = [ 1 2; 2 3; 3 4; 4 5; 5 6; 6 7; 7 8; 8 1
+             9 10; 10 11; 11 12; 12 9 ]
 
-
+    dx = 10 * sqrt(1/r)
     a = [(x,y) for x in -1:dx:9 for y in -1:dx:9]
     xpos, ypos = [p[1] for p in a], [p[2] for p in a]
 
-    stat = inpoly2([xpos ypos], node, edge, atol=tol)
+    stat, bnds = inpoly2([xpos ypos], node, edge, atol=tol)
     if do_plot
-        p = plot(title="demo1 (dx $dx, atol $tol)", legend=:topleft)
-        p = plotpoints(p, xpos, ypos, stat)
+        p = plot(title="demo1 (r $r, atol $tol)", legend=:topleft)
+        p = plotpoints(p, xpos, ypos, stat, bnds, which)
         p = plotpolygon(p, node, edge)
         display(p)
     end
-    stat
+    stat, bnds
 end
 
 #-----------------------------------------------------------
-function demo2(;r=2500, tol=1e-3, do_plot=true)
+function demo2(;r=2500, tol=1e-3, do_plot=true, which=3)
     do_plot && println("""
         INPOLY2 supports multiply-connected geometries, consi-\n
         sting of arbitrarily nested sets of outer + inner bou-\n
@@ -78,18 +54,18 @@ function demo2(;r=2500, tol=1e-3, do_plot=true)
 """)
 
     xpos, ypos, node, edge = testdata("lakes.msh", r)
-    stat = inpoly2([xpos ypos], node, edge, rtol=tol) 
+    stat, bnds = inpoly2([xpos ypos], node, edge, rtol=tol) 
     if do_plot
         p = plot(title="demo2 - lakes (r $r, rtol $tol)", legend=:topleft)
         p = plotpolygon(p, node, edge)
-        p = plotpoints(p, xpos, ypos, stat)
+        p = plotpoints(p, xpos, ypos, stat, bnds, which)
         display(p)
     end
-    stat
+    stat, bnds
 end
 
 #-----------------------------------------------------------
-function demo3(;r=2500, tol=1e-3, do_plot=true)
+function demo3(;r=2500, tol=1e-3, do_plot=true, which=3)
     do_plot && println("""
         INPOLY2 implements a "pre-sorted" variant of the cros-\n
         sing-number test - returning queries in approximately \n
@@ -108,18 +84,18 @@ function demo3(;r=2500, tol=1e-3, do_plot=true)
     stat = @time inpolygon1(xvert, xnode)
     =#
     println("inpoly2")
-    stat = @time inpoly2([xpos ypos], node, edge, rtol=tol)
+    stat, bnds = @time inpoly2([xpos ypos], node, edge, rtol=tol)
     if do_plot
         p = plot(title="demo3 - coast (r $r, rtol $tol)", legend=:topleft)
         p = plotpolygon(p, node, edge)
-        p = plotpoints(p, xpos, ypos, stat)
+        p = plotpoints(p, xpos, ypos, stat, bnds, which)
         display(p)
     end
-    stat
+    stat, bnds
 end
 
 #-----------------------------------------------------------
-function demo4(;r=5*10^5, tol=1e-2, do_plot=true)
+function demo4(;r=5*10^5, tol=1e-2, do_plot=true, which=3)
     do_plot && println("""
         INPOLY2 provides fast point-in-polygon queries for ob-\n 
         jects in R^2. Like INPOLYGON, it detects points inside\n
@@ -132,14 +108,14 @@ function demo4(;r=5*10^5, tol=1e-2, do_plot=true)
     rpts = testbox(r, [-1.0 -1.0], [ 11.0 6.0])
     xpos, ypos = rpts[:,1], rpts[:,2]
 
-    stat = inpoly2(rpts, node, edge, atol=tol)
+    stat, bnds = inpoly2(rpts, node, edge, atol=tol)
     if do_plot
         p = plot(title="demo4 (r $r, atol $tol)", legend=:topleft)
-        p = plotpoints(p, xpos, ypos, stat)
+        p = plotpoints(p, xpos, ypos, stat, bnds, which)
         p = plotpolygon(p, node, edge)
         display(p)
     end
-    stat
+    stat, bnds
 end
 
 #----- Utility functions
@@ -187,14 +163,13 @@ function plotpolygon(p, node::Matrix{T}, edge::Matrix{<:Integer}) where T<:Real
     p
 end
 
-function plotpoints(p, xpos, ypos, stat)
+function plotpoints(p, xpos, ypos, inside, bnds, which::Integer=3)
     ms = 1.0
-    onbound = stat .== 0
-    inside = stat .> 0
-    outside = stat .< 0
+    outside = (!).(inside)
+    onbound = bnds .& ((inside .& (which & 1 == 1)) .| (outside .& (which & 2 == 2)))
+    scatter!(p, xpos[onbound], ypos[onbound], markershape=:x, markersize=ms, color=:black)
     scatter!(p, xpos[inside], ypos[inside], markershape=:cross, markersize=ms, color=:blue)
     scatter!(p, xpos[outside], ypos[outside], markershape=:cross, markersize=ms, color=:red)
-    scatter!(p, xpos[onbound], ypos[onbound], markershape=:x, markersize=ms, color=:black)
     display(p)
     p
 end

@@ -107,12 +107,12 @@ function Base.sortperm(p::PointsInbound, ix::Integer)
     sortperm([vertex(p, k, ix) for k in 1:n])
 end
 function Base.sortperm(p::PointsInbound{<:AbstractMatrix}, ix::Integer)
-    sortperm(p.points[:,ix])
+    sortperm(view(p.points, :, ix))
 end
 
 function convertout(to::Type{T}, from::Type{S}, args...) where {S<:AbstractOutputFormat,T<:AbstractOutputFormat}
     T == S && return length(args) == 1 ? args[1] : args
-    convertto(convertfrom(from, args...))
+    convertto(to, convertfrom(from, args...)...)
 end
 
 function convertfrom(::Type{InOnBool}, stat::T, bnds::T) where T<:Union{BitVector,Bool}

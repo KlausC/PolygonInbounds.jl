@@ -21,7 +21,7 @@ outside numerically.
 Expected effort of the algorithm is `(N+M)*log(M)`, where `M` is the number of points
 and `N` is the number of polygon edges.
 """
-function inpoly2(vert, node, edge=zeros(Int); atol::T=0.0, rtol::T=NaN, outformat=InOnOut{1,0,-1}) where T<:AbstractFloat
+function inpoly2(vert, node, edge=zeros(Int); atol::T=0.0, rtol::T=NaN, outformat=InOnBool) where T<:AbstractFloat
 
     rtol = isnan(rtol) ? eps(T)^0.85 : rtol
     polygon = PolygonType(node, edge)
@@ -36,12 +36,14 @@ function inpoly2(vert, node, edge=zeros(Int); atol::T=0.0, rtol::T=NaN, outforma
     # flip coordinates so y-span of points >= x-span of points
     flip = ddxy[1] > ddxy[2]
     ivec = sortperm(points, 2-flip)
-    stat = view(fill(Int8(-1), nvrt), ivec) # -1 outside, 0 onbound, +1 inside
+    stat = view(falses(nvrt), ivec)
+    bnds = view(falses(nvrt), ivec)
     statv = view(stat, ivec)
+    bndsv = view(bnds, ivec)
 
     tol = max(abs(rtol * lbar), abs(atol))
-    inpoly2!(points, ivec, polygon, flip, tol, statv)
-    convertout(outformat, InOnOut{1,0,-1}, stat)
+    inpoly2!(points, ivec, polygon, flip, tol, statv, bndsv)
+    convertout(outformat, InOnBool, stat, bnds)
 end
 
 """
@@ -52,7 +54,8 @@ test. Loop over edges; do a binary-search for the first ve-
 rtex that intersects with the edge y-range; do crossing-nu-
 mber comparisons; break when the local y-range is exceeded.
 """
-function inpoly2!(points, ivec, polygon, flip::Bool, veps::AbstractFloat, stat::AbstractVector{<:Integer})
+function inpoly2!(points, ivec, polygon, flip::Bool, veps::AbstractFloat, stat::T, bnds::T) where T<:AbstractVector{Bool}
+
     nvrt = length(points) # the points to be checked
     nnod = length(polygon) # the vertices of the polygon
     
@@ -100,7 +103,7 @@ function inpoly2!(points, ivec, polygon, flip::Bool, veps::AbstractFloat, stat::
         #------------------------------- calc. edge-intersection
         # loop over all points with y ∈ [ymin,ymax]
         for jpos = ilow+1:nvrt
-            stat[jpos] == 0 && continue
+            # bnds[jpos] && continue
             ypos = vertex(points, ivec[jpos], iy)
             ypos > ymax && break 
             xpos = vertex(points, ivec[jpos], ix)
@@ -117,23 +120,24 @@ function inpoly2!(points, ivec, polygon, flip::Bool, veps::AbstractFloat, stat::
                              xdel * (xpos - xtwo) > ydel * (ytwo - ypos) &&
                              hypot(xpos- xtwo, ypos - ytwo) > veps)
                             # ---- round boundaries around endpoints of edge
-                            stat[jpos]= 0
-                        elseif mul1 < mul2 && yone <= ypos < ytwo
+                            bnds[jpos] = true
+                        end
+                        if mul1 < mul2 && yone <= ypos < ytwo
                             #----- left of line && ypos exact to avoid multiple counting
-                            stat[jpos] = -stat[jpos]
+                            stat[jpos] = !stat[jpos]
                         end
                     elseif mul1 < mul2 && yone <= ypos < ytwo
                         #----- left of line && ypos exact to avoid multiple counting
-                        stat[jpos] = -stat[jpos]
+                        stat[jpos] = !stat[jpos]
                     end
                 end
             else # xpos < xmin - left of bounding box
                 if yone <= ypos <  ytwo
                     #----- ypos exact to avoid multiple counting
-                    stat[jpos] = -stat[jpos]
+                    stat[jpos] = !stat[jpos]
                 end
             end
         end
     end
-    stat
+    stat, bnds
 end
