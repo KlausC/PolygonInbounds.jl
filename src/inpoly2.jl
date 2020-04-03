@@ -21,12 +21,11 @@ outside numerically.
 Expected effort of the algorithm is `(N+M)*log(M)`, where `M` is the number of points
 and `N` is the number of polygon edges.
 """
-function inpoly2(vert, node, edge=zeros(Int); atol::T=0.0, rtol::T=NaN, outformat=InOnBool) where T<:AbstractFloat
+function inpoly2(vert, node, edge=zeros(Int); atol::T=0.0, rtol::T=NaN, outformat=InOnBit) where T<:AbstractFloat
 
     rtol = isnan(rtol) ? eps(T)^0.85 : rtol
-    polygon = PolygonType(node, edge)
+    poly = PolygonMesh(node, edge)
     points = PointsInbound(vert)
-    nnod = length(node)
     nvrt = length(points)
 
     vmin = minimum(points)
@@ -36,14 +35,13 @@ function inpoly2(vert, node, edge=zeros(Int); atol::T=0.0, rtol::T=NaN, outforma
     # flip coordinates so y-span of points >= x-span of points
     flip = ddxy[1] > ddxy[2]
     ivec = sortperm(points, 2-flip)
-    stat = view(falses(nvrt), ivec)
-    bnds = view(falses(nvrt), ivec)
-    statv = view(stat, ivec)
-    bndsv = view(bnds, ivec)
+    ac = areacount(poly)
+    stat = falses(nvrt,2,ac)
+    statv = view(stat, ivec, :, :)
 
     tol = max(abs(rtol * lbar), abs(atol))
-    inpoly2!(points, ivec, polygon, flip, tol, statv, bndsv)
-    convertout(outformat, InOnBool, stat, bnds)
+    inpoly2!(points, ivec, poly, flip, tol, statv)
+    convertout(outformat, InOnBit, stat)
 end
 
 """
@@ -54,27 +52,28 @@ test. Loop over edges; do a binary-search for the first ve-
 rtex that intersects with the edge y-range; do crossing-nu-
 mber comparisons; break when the local y-range is exceeded.
 """
-function inpoly2!(points, ivec, polygon, flip::Bool, veps::AbstractFloat, stat::T, bnds::T) where T<:AbstractVector{Bool}
+function inpoly2!(points, ivec, poly, flip::Bool, veps::AbstractFloat, stat::T) where {N,T<:AbstractArray{Bool,N}}
 
-    nvrt = length(points) # the points to be checked
-    nnod = length(polygon) # the vertices of the polygon
+    nvrt = length(points)   # number of points to be checked
+    nedg = edgecount(poly)  # number of edges of the polygon mesh
     
     ix = flip + 1
     iy = 2 - flip
     #----------------------------------- loop over polygon edges
-    for epos = 1:nnod
+    for epos = 1:nedg
 
-        inod = edge(polygon, epos, 1)  # from
-        jnod = edge(polygon, epos, 2)  # to
-        if vertex(polygon, inod, iy) > vertex(polygon, jnod, iy)
+        inod = egdeindex(poly, epos, 1)  # from
+        jnod = egdeindex(poly, epos, 2)  # to
+        # swap order of vertices
+        if vertex(poly, inod, iy) > vertex(poly, jnod, iy)
             inod, jnod = jnod, inod
         end
 
         #------------------------------- calc. edge bounding-box
-        xone = vertex(polygon, inod, ix)
-        yone = vertex(polygon, inod, iy)
-        xtwo = vertex(polygon, jnod, ix)
-        ytwo = vertex(polygon, jnod, iy)
+        xone = vertex(poly, inod, ix)
+        yone = vertex(poly, inod, iy)
+        xtwo = vertex(poly, jnod, ix)
+        ytwo = vertex(poly, jnod, iy)
 
         xmin = min(xone, xtwo) - veps
         xmax = max(xone, xtwo) + veps
@@ -120,24 +119,51 @@ function inpoly2!(points, ivec, polygon, flip::Bool, veps::AbstractFloat, stat::
                              xdel * (xpos - xtwo) > ydel * (ytwo - ypos) &&
                              hypot(xpos- xtwo, ypos - ytwo) > veps)
                             # ---- round boundaries around endpoints of edge
-                            bnds[jpos] = true
+                            setonbounds!(poly, stat, jpos, epos)
                         end
                         if mul1 < mul2 && yone <= ypos < ytwo
                             #----- left of line && ypos exact to avoid multiple counting
-                            stat[jpos] = !stat[jpos]
+                            flipio!(poly, stat, jpos, epos)
                         end
                     elseif mul1 < mul2 && yone <= ypos < ytwo
                         #----- left of line && ypos exact to avoid multiple counting
-                        stat[jpos] = !stat[jpos]
+                        flipio!(poly, stat, jpos, epos)
                     end
                 end
             else # xpos < xmin - left of bounding box
                 if yone <= ypos <  ytwo
                     #----- ypos exact to avoid multiple counting
-                    stat[jpos] = !stat[jpos]
+                    flipio!(poly, stat, jpos, epos)
                 end
             end
         end
     end
-    stat, bnds
+    stat
 end
+
+"""
+    flipio!(poly, stat, p, epos)
+
+Flip boolean value of in-out-status of point `p` for all areas associated with edge `epos`. 
+"""
+function flipio!(poly::PolygonMesh, stat::AbstractArray{Bool}, i::Integer, j::Integer)
+    statop!((stat,j,a) -> begin stat[j,1,a] = !stat[j,1,a]; end, poly, stat, i, j)
+end
+
+"""
+    setonbounds!(poly, stat, p, epos)
+
+Set boolean value of on-bounds-status of point `p` for all areas associated with edge `epos`. 
+"""
+function setonbounds!(poly::PolygonMesh, stat::AbstractArray{Bool}, i::Integer, j::Integer)
+    statop!((stat, j,a) -> begin stat[j,2,a] = true; end, poly, stat, i, j)
+end
+function statop!(f!::Function, poly::PolygonMesh{A}, stat::AbstractArray{Bool,N}, p::Integer, ed::Integer) where {A,N}
+    for k in 1:max(A, 1)
+        area = N == 3 ? areaindex(poly, ed, k) : 1
+        if area > 0
+            f!(stat, p, area)
+        end
+    end
+end
+

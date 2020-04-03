@@ -3,7 +3,6 @@ language: julia
 os:
   - linux
   - osx
-  - windows
 julia:
   - 1.0
   - 1.4
@@ -11,3 +10,16 @@ julia:
 notifications:
   email: false
 codecov: false
+## Documentation: http://docs.travis-ci.com/user/languages/julia/
+git:
+  depth: 99999999
+
+## uncomment/modify the following lines to allow failures
+## (tests will run but not make your overall status red)
+matrix:
+  allow_failures:
+   - os: windows
+
+after_success:
+  - julia -e 'import Pkg; Pkg.add("Coverage"); using Coverage; Codecov.submit(Codecov.process_folder())'
+

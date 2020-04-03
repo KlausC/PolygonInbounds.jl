@@ -19,7 +19,7 @@ function polydemo(id::Integer=1; args...)
 end
 
 #-----------------------------------------------------------
-function demo1(;tol=1e-2, r=10^5, do_plot=true, which=3)
+function demo1(;tol=1e-2, r=10^5, do_plot=true)
     do_plot && println("""
         INPOLY2 provides fast point-in-polygon queries for ob-\n 
         jects in R^2. Like INPOLYGON, it detects points inside\n
@@ -35,18 +35,18 @@ function demo1(;tol=1e-2, r=10^5, do_plot=true, which=3)
     a = [(x,y) for x in -1:dx:9 for y in -1:dx:9]
     xpos, ypos = [p[1] for p in a], [p[2] for p in a]
 
-    stat, bnds = inpoly2([xpos ypos], node, edge, atol=tol)
+    stat = inpoly2([xpos ypos], node, edge, atol=tol)
     if do_plot
         p = plot(title="demo1 (r $r, atol $tol)", legend=:topleft)
-        p = plotpoints(p, xpos, ypos, stat, bnds, which)
+        p = plotpoints(p, xpos, ypos, stat)
         p = plotpolygon(p, node, edge)
         display(p)
     end
-    stat, bnds
+    stat
 end
 
 #-----------------------------------------------------------
-function demo2(;r=2500, tol=1e-3, do_plot=true, which=3)
+function demo2(;r=2500, tol=1e-3, do_plot=true)
     do_plot && println("""
         INPOLY2 supports multiply-connected geometries, consi-\n
         sting of arbitrarily nested sets of outer + inner bou-\n
@@ -54,18 +54,18 @@ function demo2(;r=2500, tol=1e-3, do_plot=true, which=3)
 """)
 
     xpos, ypos, node, edge = testdata("lakes.msh", r)
-    stat, bnds = inpoly2([xpos ypos], node, edge, rtol=tol) 
+    stat = inpoly2([xpos ypos], node, edge, rtol=tol) 
     if do_plot
         p = plot(title="demo2 - lakes (r $r, rtol $tol)", legend=:topleft)
         p = plotpolygon(p, node, edge)
-        p = plotpoints(p, xpos, ypos, stat, bnds, which)
+        p = plotpoints(p, xpos, ypos, stat)
         display(p)
     end
-    stat, bnds
+    stat
 end
 
 #-----------------------------------------------------------
-function demo3(;r=2500, tol=1e-3, do_plot=true, which=3)
+function demo3(;r=2500, tol=1e-3, do_plot=true)
     do_plot && println("""
         INPOLY2 implements a "pre-sorted" variant of the cros-\n
         sing-number test - returning queries in approximately \n
@@ -84,18 +84,18 @@ function demo3(;r=2500, tol=1e-3, do_plot=true, which=3)
     stat = @time inpolygon1(xvert, xnode)
     =#
     println("inpoly2")
-    stat, bnds = @time inpoly2([xpos ypos], node, edge, rtol=tol)
+    stat = @time inpoly2([xpos ypos], node, edge, rtol=tol)
     if do_plot
         p = plot(title="demo3 - coast (r $r, rtol $tol)", legend=:topleft)
+        p = plotpoints(p, xpos, ypos, stat)
         p = plotpolygon(p, node, edge)
-        p = plotpoints(p, xpos, ypos, stat, bnds, which)
         display(p)
     end
-    stat, bnds
+    stat
 end
 
 #-----------------------------------------------------------
-function demo4(;r=5*10^5, tol=1e-2, do_plot=true, which=3)
+function demo4(;r=5*10^5, tol=1e-2, do_plot=true)
     do_plot && println("""
         INPOLY2 provides fast point-in-polygon queries for ob-\n 
         jects in R^2. Like INPOLYGON, it detects points inside\n
@@ -108,14 +108,14 @@ function demo4(;r=5*10^5, tol=1e-2, do_plot=true, which=3)
     rpts = testbox(r, [-1.0 -1.0], [ 11.0 6.0])
     xpos, ypos = rpts[:,1], rpts[:,2]
 
-    stat, bnds = inpoly2(rpts, node, edge, atol=tol)
+    stat = inpoly2(rpts, node, edge, atol=tol)
     if do_plot
         p = plot(title="demo4 (r $r, atol $tol)", legend=:topleft)
-        p = plotpoints(p, xpos, ypos, stat, bnds, which)
+        p = plotpoints(p, xpos, ypos, stat)
         p = plotpolygon(p, node, edge)
         display(p)
     end
-    stat, bnds
+    stat
 end
 
 #----- Utility functions
@@ -163,13 +163,23 @@ function plotpolygon(p, node::Matrix{T}, edge::Matrix{<:Integer}) where T<:Real
     p
 end
 
-function plotpoints(p, xpos, ypos, inside, bnds, which::Integer=3)
+function plotpoints(p, xpos, ypos, stat)
     ms = 1.0
-    outside = (!).(inside)
-    onbound = bnds .& ((inside .& (which & 1 == 1)) .| (outside .& (which & 2 == 2)))
-    scatter!(p, xpos[onbound], ypos[onbound], markershape=:x, markersize=ms, color=:black)
-    scatter!(p, xpos[inside], ypos[inside], markershape=:cross, markersize=ms, color=:blue)
-    scatter!(p, xpos[outside], ypos[outside], markershape=:cross, markersize=ms, color=:red)
+    area = 1
+    inside = stat[:,1,area]
+    onbound = stat[:,2,area]
+    ina = inside .& (!).(onbound)
+    inb = inside .& onbound
+    outa = (!).(inside) .& (!).(onbound)
+    outb = (!).(inside) .& onbound
+
+    function sca(ina, color=:black, mshape=:cross)
+        scatter!(p, xpos[ina], ypos[ina], markershape=mshape, markersize=ms, color=color)
+    end
+    sca(ina, :green)
+    sca(inb, :yellow)
+    sca(outb, :blue)
+    sca(outa, :lightblue)
     display(p)
     p
 end

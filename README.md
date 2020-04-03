@@ -3,28 +3,47 @@
 [![Build Status](https://travis-ci.com/KlausC/PolygonInbounds.jl.svg?branch=master)](https://travis-ci.com/KlausC/PolygonInbounds.jl)
 [![Codecov](https://codecov.io/gh/KlausC/PolygonInbounds.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/KlausC/PolygonInbounds.jl)
 
-### Purpose
+## Purpose
 
-Only purpose of the is to implement and improve function INPOLY2 in Julia.
+Purpose of the is to implement and improve function INPOLY2 in Julia. Some new
+features have been added.
 
 The implementation claims to be fast for multiple points to check at once.
+
+Link to original Matlab sources: [inpoly2.m](https://github.com/dengwirda/inpoly)
 The algorithm was developed by Darren Engwirda in 2017.
 
-`stats = inpoly2(points, nodes, edges[, atol=, rtol=])` determines for each point in `points`
-a status of
+## Description
 
-* -1 outside polygon
-* +1 inside polygon 
-* 0  on boundary of polygon
+```
+stat = inpoly2(points, nodes, edges[, atol=, rtol=])
+```
 
-A point is considered on boundary, if its Euclidian distance to any of the edges
+determines for each point of `points`
+two status bits: `inside` and `onboundary`. These bits are stored in the output
+matrix `stat[:,1:2]` with the same row indices as `points`.
+
+A point is considered "inside", if the ray starting from x heading east intersects an
+odd number of edges.
+
+#### New feature:
+A point is considered "on-boundary", if its Euclidian distance to any of the edges
 of the polygon is less than `tol = max(atol, rtol*sizefactor)`.
 
 `points` and `nodes` are matrices consisting of x, y in first and second column.
 `edges` is a matrix of indices into `nodes`, which define the egdges of the polygon.
+
 The polygon may be unconnected and self-overlapping.
 
-Link to original Matlab sources: [inpoly2.m](https://github.com/dengwirda/inpoly)
+#### New feature:
+Each edge may be associated with one or more area codes, which are stored in adjacent
+columns of `edges[:,3:end]`. If there is more than one additional area colum,
+the output array becomes 3-dimensional with elements `stats[:,1:2,area]`. Here `area`
+are the area indices as stored in the additional columns of `edges`.
+
+The definitions of "inside" and "on-boundary" related to an area consider only edges,
+which have this area associated in one of the added columns of `edges`.
+Area index `0` indicates unused.
 
 
 ### Usage:
@@ -81,9 +100,9 @@ INPOLY2 compute "points-in-polygon" queries.
     are "inside". A simple implementation requires that each
     edge intersection be checked for each point, leading to
     O(N*M) complexity...
- 
+
     This implementation seeks to improve these bounds:
- 
+
   * Sorting the query points by y-value and determining can-
     didate edge intersection sets via binary-search. Given a
     configuration with N test points, M edges and an average
