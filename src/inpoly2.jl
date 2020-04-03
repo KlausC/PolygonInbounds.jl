@@ -36,7 +36,7 @@ function inpoly2(vert, node, edge=zeros(Int); atol::T=0.0, rtol::T=NaN, outforma
     flip = ddxy[1] > ddxy[2]
     ivec = sortperm(points, 2-flip)
     ac = areacount(poly)
-    stat = falses(nvrt,2,ac)
+    stat = ac > 1 ? falses(nvrt,2,ac) : falses(nvrt,2)
     statv = view(stat, ivec, :, :)
 
     tol = max(abs(rtol * lbar), abs(atol))
@@ -62,8 +62,8 @@ function inpoly2!(points, ivec, poly, flip::Bool, veps::AbstractFloat, stat::T) 
     #----------------------------------- loop over polygon edges
     for epos = 1:nedg
 
-        inod = egdeindex(poly, epos, 1)  # from
-        jnod = egdeindex(poly, epos, 2)  # to
+        inod = edgeindex(poly, epos, 1)  # from
+        jnod = edgeindex(poly, epos, 2)  # to
         # swap order of vertices
         if vertex(poly, inod, iy) > vertex(poly, jnod, iy)
             inod, jnod = jnod, inod

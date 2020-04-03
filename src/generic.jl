@@ -10,15 +10,16 @@ Polygon given by `nodes` and `edges`. Several formats are supported:
 
 Incomplete edges are filles up by best guess. The columns must be permutations of `1:n`.
 """
-struct PolygonMesh{A,U,E}
+struct PolygonMesh{A,U,E<:Union{Nothing,AbstractArray{<:Integer}}}
     nodes::U
     edges::E
     function PolygonMesh(n::U, ed::E) where {U,E}
         A = ed isa AbstractMatrix ? max(size(ed, 2) - 2, 0) : 0
         # the number of stored area indices per edge
+        checkarguments(n, ed)
         new{A,U,E}(n, ed)
     end
-    PolygonMesh(n::U) where U = new{A,U,Nothing}(n, nothing)
+    PolygonMesh(n::U) where U = PolygonMesh(n, nothing)
 end
 
 """
@@ -68,13 +69,13 @@ function edgecount(poly::PolygonMesh)
     size(poly.edges, 1)
 end
 
-function egdeindex(poly::PolygonMesh{0,<:Any,Union{Nothing,<:AbstractArray{<:Any,0}}}, i::Integer, n::Integer)
-    n == 1 ? i : i ÷ nodecount(poly) + 1
+function edgeindex(poly::PolygonMesh{0,<:Any,<:Union{Nothing,AbstractArray{<:Any,0}}}, i::Integer, n::Integer)
+    n == 1 ? i : i % nodecount(poly) + 1
 end
-function egdeindex(poly::PolygonMesh{<:Any,<:Any,<:AbstractVector}, i::Integer, n::Integer)
+function edgeindex(poly::PolygonMesh{<:Any,<:Any,<:AbstractVector}, i::Integer, n::Integer)
     n == 1 ? i : poly.edges[i]
 end
-function egdeindex(poly::PolygonMesh{<:Any,<:Any,<:AbstractMatrix}, i::Integer, n::Integer)
+function edgeindex(poly::PolygonMesh{<:Any,<:Any,<:AbstractMatrix}, i::Integer, n::Integer)
     poly.edges[i,n]
 end
 
@@ -189,20 +190,46 @@ function convertto(::Type{OT}, stat::T) where {OT<:InOnOut,T<:AbstractArray{Bool
     convertto.(OT, view(stat, :,1,:), view(stat, :, 2, :))
 end
 
-# unused check functions
+# check functions for PolygonMesh constructor
 
-function checkedge(edge)
-    if N == 0
-    elseif N == 1
-        edge = [1:length(edge) edge]
+function checknodes(nodes::AbstractMatrix)
+    size(nodes, 2) >= 2 || throw(ArgumentError("nodes require at least 2 coordinates"))
+    nothing
+end
+function checknodes(nodes::AbstractVector)
+    nothing
+end
+function checknodes(nodes)
+    nothing
+end
+
+function checkarguments(nodes, edges::Union{Nothing,AbstractArray{<:Integer,0}})
+    checknodes(nodes)
+    nothing
+end
+function checkarguments(nodes, edges::AbstractVector{<:Integer})
+    checknodes(nodes)
+    n = size(nodes, 1)
+    mi, ma = extrema(edges)
+    0 < mi <= ma <= n || throw(ArgumentError("invalid edge indices"))
+    nothing
+end
+function checkarguments(nodes, edges::AbstractMatrix{<:Integer})
+    checknodes(nodes)
+    n, m = size(nodes)
+    m >= 2 || throw(ArgumentError("edges matrix requires at least 2 columns"))
+    m <= 5 || throw(ArgumentError("edges matrix accepts at most 3 area columns"))
+    mi, ma = extrema(view(edges, :, 1:2))
+    0 < mi <= ma <= n || throw(ArgumentError("invalid edge indices"))
+    if m > 2
+        mi, ma = extrema(view(edges, :, 3:m))
+        0 <= mi <= 4096 || throw(ArgumentError("invalid area indices ($mi, $ma)"))
     end
-    checkfor2(v, s) = size(v,2) == 2 || throw(ArgumentError("array $s needs 2 columns"))
-    checkfor2(node, "node"); checkfor2(edge, "edge"); checkfor2(vert, "vert")
-    if size(edge, 1) != nnod
-        throw(ArgumentError("edges need same length as nodes"))
-    end
-    if N == 2 && !isperm(view(edge,:,1)) || N >= 1 && !isperm(view(edge,:,2))
-        throw(ArgumentError("edges are not permutation"))
+    if m <= 2 || m == 3 && mi == ma
+        check(i) = isperm(view(edges, :, i)) ||
+        throw(ArgumentError("edges column $i is no permutation"))
+        check(1)
+        check(2)
     end
     nothing
 end
