@@ -23,40 +23,66 @@ and `N` is the number of polygon edges.
 """
 function inpoly2(vert, node, edge=zeros(Int); atol::T=0.0, rtol::T=NaN, outformat=InOnBit) where T<:AbstractFloat
 
-    rtol = isnan(rtol) ? eps(T)^0.85 : rtol
+    rtol = !isnan(rtol) ? rtol : iszero(atol) ? eps(T)^0.85 : zero(T)
     poly = PolygonMesh(node, edge)
     points = PointsInbound(vert)
-    nvrt = length(points)
+    npoints = length(points)
 
     vmin = minimum(points)
     vmax = maximum(points)
-    ddxy = vmax - vmin
-    lbar = sum(ddxy) / 2
-    # flip coordinates so y-span of points >= x-span of points
-    flip = ddxy[1] > ddxy[2]
-    ivec = sortperm(points, 2-flip)
+    pmin = minimum(poly)
+    pmax = maximum(poly)
+
+    lbar = sum(pmax - pmin)
+    tol = max(abs(rtol * lbar), abs(atol))
+    
     ac = areacount(poly)
-    stat = ac > 1 ? falses(nvrt,2,ac) : falses(nvrt,2)
+    stat = ac > 1 ? falses(npoints,2,ac) : falses(npoints,2)
+    # flip coordinates so expected efford is minimal
+
+    dvert = vmax - vmin
+    flip = dvert[1] > dvert[2]
+    ivec = sortperm(points, 2-flip)
     statv = view(stat, ivec, :, :)
 
-    tol = max(abs(rtol * lbar), abs(atol))
-    inpoly2!(points, ivec, poly, flip, tol, statv)
+    inpoly2!(points, ivec, poly, flip, tol, tol, statv)
+    
+    #=
+    if min(xmid, ymid) < ymid0 + ymid0
+        # flip coordinates so expected efford is minimal
+        flip = xmid > ymid
+
+        ivec = sortperm(points, 2-flip)
+        statv = view(stat, ivec, :, :)
+
+        inpoly2!(points, ivec, poly, flip, tol, tol, statv)
+    else
+        ivec = sortperm(points, 2)
+        statv = view(stat, ivec, :, :)
+        inpoly2!(points, ivec, poly, false, tol, 0.0, statv)
+        ivec = sortperm(points, 1)
+        statv = view(stat, ivec, :, :)
+        stat[:,1,:] .= false
+        inpoly2!(points, ivec, poly, true, tol, 0.0, statv)
+    end
+    =#
     convertout(outformat, InOnBit, stat)
 end
 
 """
-    inpoly2_mat(vert, node, edge, fTol, stats)
+    inpoly2_mat(vert, node, edge, fTolx, ftoly, stats)
 
 INPOLY2_MAT the local m-code version of the crossing-number
 test. Loop over edges; do a binary-search for the first ve-
 rtex that intersects with the edge y-range; do crossing-nu-
 mber comparisons; break when the local y-range is exceeded.
 """
-function inpoly2!(points, ivec, poly, flip::Bool, veps::AbstractFloat, stat::T) where {N,T<:AbstractArray{Bool,N}}
+function inpoly2!(points, ivec, poly, flip::Bool, vepsx::T, vepsy::T, stat::S) where {N,T<:AbstractFloat,S<:AbstractArray{Bool,N}}
 
     nvrt = length(points)   # number of points to be checked
     nedg = edgecount(poly)  # number of edges of the polygon mesh
-    
+    veps = max(vepsx, vepsy)
+
     ix = flip + 1
     iy = 2 - flip
     #----------------------------------- loop over polygon edges
@@ -75,10 +101,10 @@ function inpoly2!(points, ivec, poly, flip::Bool, veps::AbstractFloat, stat::T) 
         xtwo = vertex(poly, jnod, ix)
         ytwo = vertex(poly, jnod, iy)
 
-        xmin = min(xone, xtwo) - veps
-        xmax = max(xone, xtwo) + veps
-        ymin = yone - veps
-        ymax = ytwo + veps
+        xmin = min(xone, xtwo) - vepsx
+        xmax = max(xone, xtwo) + vepsx
+        ymin = yone - vepsy
+        ymax = ytwo + vepsy
 
         ydel = ytwo - yone
         xdel = xtwo - xone

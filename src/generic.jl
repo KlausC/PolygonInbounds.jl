@@ -65,7 +65,13 @@ struct InOnBit <: AbstractOutputFormat end
 function nodecount(poly::PolygonMesh)
     size(poly.nodes, 1)
 end
-function edgecount(poly::PolygonMesh)
+function Base.length(poly::PolygonMesh)
+    nodecount(poly)
+end
+function edgecount(poly::PolygonMesh{<:Any,<:Any,<:Union{Nothing,AbstractArray{<:Any,0}}})
+    length(poly)
+end
+function edgecount(poly::PolygonMesh{<:Any,<:Any,<:AbstractArray})
     size(poly.edges, 1)
 end
 
@@ -84,12 +90,39 @@ function areaindex(poly::PolygonMesh{A}, i::Integer, a::Integer) where A
 end
 function areacount(poly::PolygonMesh{A}) where A
     if A >= 1
-        mi, ma = extrema(view(poly.edge, :, 3:A))
-        mi >= 0 || throw(ArgumentError("negative area index detected"))
-        ma
+        maximum(view(poly.edges, :, 3:A+2))
     else
         1
     end
+end
+
+function all_areas(poly::PolygonMesh{A}) where A
+    if A >= 1
+        edges = poly.edges
+        m = size(edges, 2)
+        m <= 2 ? [1] : [a for a in unique(vec(view(edges,:, 3:m))) if a != 0]
+    else
+        [1]
+    end
+end
+
+function edges_dict_for_area(poly::PolygonMesh{A}, a::Integer) where A
+    edges = poly.edges
+    n, m = size(edges)
+    if A >= 1
+        has(edges, i, a) = any(view(edges, i, 3:m) .== a)
+        Dict((edges[k,1], edges[k,2]) for k in 1:n if has(edges, k, a))
+    else
+        Dict((edges[k,1], edges[k,2]) for k in 1:n)
+    end
+end
+
+function all_edges(poly::PolygonMesh)
+    ((edgeindex(poly, i, 1), edgeindex(poly, i, 2)) for i in 1:edgecount(poly))
+end
+
+function all_boxlengths(poly::PolygonMesh, xy::Integer)
+    (abs(vertex(poly,v,xy) - vertex(poly,w,xy)) for (v, w) in all_edges(poly))
 end
 
 function vertex(poly::PolygonMesh{<:Any,<:AbstractMatrix{<:Real}}, v::Integer, xy::Integer)
@@ -123,11 +156,11 @@ end
 
 # standard functions for PointsInbound
 
-function Base.minimum(p::PointsInbound)
+function Base.minimum(p::Union{PointsInbound,PolygonMesh})
     n = length(p)
     minimum([[vertex(p, k, 1) for k = 1:n] [vertex(p, k, 2) for k = 1:n]], dims = 1)
 end
-function Base.maximum(p::PointsInbound)
+function Base.maximum(p::Union{PointsInbound,PolygonMesh})
     n = length(p)
     maximum([[vertex(p, k, 1) for k = 1:n] [vertex(p, k, 2) for k = 1:n]], dims = 1)
 end
@@ -216,7 +249,7 @@ function checkarguments(nodes, edges::AbstractVector{<:Integer})
 end
 function checkarguments(nodes, edges::AbstractMatrix{<:Integer})
     checknodes(nodes)
-    n, m = size(nodes)
+    n, m = size(edges)
     m >= 2 || throw(ArgumentError("edges matrix requires at least 2 columns"))
     m <= 5 || throw(ArgumentError("edges matrix accepts at most 3 area columns"))
     mi, ma = extrema(view(edges, :, 1:2))

@@ -45,6 +45,8 @@ The definitions of "inside" and "on-boundary" related to an area consider only e
 which have this area associated in one of the added columns of `edges`.
 Area index `0` indicates unused.
 
+The `polydemo` functions produce plots of some selected examples and may be used
+to enjoy.
 
 ### Usage:
 
@@ -54,7 +56,7 @@ Area index `0` indicates unused.
 
 using PolygonInbounds
 
-polydemo.(1:4)
+polydemo.(1:5);
 
 points = [0.05 0.0; 1 1; -1 1]
 nodes =  [0.0 0; 0 10; 10 10; 10 0]

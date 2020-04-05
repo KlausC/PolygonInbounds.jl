@@ -12,6 +12,7 @@ using PolygonInbounds
     @test inpoly2([0.0 0], [-1.0 1; 1 -1], [1 1]) == [false false]
     @test_throws ArgumentError inpoly2([0.0 0], [-1.0 1; 1 -1], [2 1; 2 2])
     @test_throws ArgumentError inpoly2([0.0 0], [-1.0 1; 1 -1], [2 2; 1 2])
+    @test_throws ArgumentError  inpoly2([0.0 0], [-1.0 1; 1 -1], [1 1 1 2 3 4])
 end
 
 let stat = polydemo(4, r=10^5, tol=1e-2, do_plot=false)
