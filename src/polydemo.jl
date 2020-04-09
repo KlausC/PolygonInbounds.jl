@@ -62,8 +62,8 @@ function demo2(;r=2500, tol=1e-3, do_plot=true)
     stat = @time inpoly2([xpos ypos], nodes, edges, rtol=tol) 
     if do_plot
         p = plot(title="demo2 - lakes (r $r, rtol $tol)"; PLOTARG...)
-        p = plotpolygon(p, poly)
         p = plotpoints(p, xpos, ypos, stat)
+        p = plotpolygon(p, poly)
         savefig(p, "demo2.png")
         display(p)
     end

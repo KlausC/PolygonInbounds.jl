@@ -41,31 +41,11 @@ function inpoly2(vert, node, edge=zeros(Int); atol::T=0.0, rtol::T=NaN, outforma
     # flip coordinates so expected efford is minimal
 
     dvert = vmax - vmin
-    flip = dvert[1] > dvert[2]
-    ivec = sortperm(points, 2-flip)
-    statv = view(stat, ivec, :, :)
+    ix = dvert[1] < dvert[2] ? 1 : 2
+    iyperm = sortperm(points, 3 - ix)
 
-    inpoly2!(points, ivec, poly, flip, tol, tol, statv)
-    
-    #=
-    if min(xmid, ymid) < ymid0 + ymid0
-        # flip coordinates so expected efford is minimal
-        flip = xmid > ymid
+    inpoly2!(points, iyperm, poly, ix, tol, stat)
 
-        ivec = sortperm(points, 2-flip)
-        statv = view(stat, ivec, :, :)
-
-        inpoly2!(points, ivec, poly, flip, tol, tol, statv)
-    else
-        ivec = sortperm(points, 2)
-        statv = view(stat, ivec, :, :)
-        inpoly2!(points, ivec, poly, false, tol, 0.0, statv)
-        ivec = sortperm(points, 1)
-        statv = view(stat, ivec, :, :)
-        stat[:,1,:] .= false
-        inpoly2!(points, ivec, poly, true, tol, 0.0, statv)
-    end
-    =#
     convertout(outformat, InOnBit, stat)
 end
 
@@ -77,14 +57,13 @@ test. Loop over edges; do a binary-search for the first ve-
 rtex that intersects with the edge y-range; do crossing-nu-
 mber comparisons; break when the local y-range is exceeded.
 """
-function inpoly2!(points, ivec, poly, flip::Bool, vepsx::T, vepsy::T, stat::S) where {N,T<:AbstractFloat,S<:AbstractArray{Bool,N}}
+function inpoly2!(points, iyperm, poly, ix::Integer, veps::T, stat::S) where {N,T<:AbstractFloat,S<:AbstractArray{Bool,N}}
 
     nvrt = length(points)   # number of points to be checked
     nedg = edgecount(poly)  # number of edges of the polygon mesh
-    veps = max(vepsx, vepsy)
+    vepsx = vepsy = veps
+    iy = 3 - ix
 
-    ix = flip + 1
-    iy = 2 - flip
     #----------------------------------- loop over polygon edges
     for epos = 1:nedg
 
@@ -101,37 +80,27 @@ function inpoly2!(points, ivec, poly, flip::Bool, vepsx::T, vepsy::T, stat::S) w
         xtwo = vertex(poly, jnod, ix)
         ytwo = vertex(poly, jnod, iy)
 
-        xmin = min(xone, xtwo) - vepsx
-        xmax = max(xone, xtwo) + vepsx
+        xmin0 = min(xone, xtwo)
+        xmax0 = max(xone, xtwo)
+        xmin = xmin0 - vepsx
+        xmax = xmax0 + vepsx
         ymin = yone - vepsy
         ymax = ytwo + vepsy
 
         ydel = ytwo - yone
         xdel = xtwo - xone
-        feps = veps * hypot(xdel, ydel)
+        xysq = xdel^2 + ydel^2
+        feps = sqrt(xysq) * veps
 
         # find top points[:,iy] < ymin by binary search
-        ilow = 1
-        iupp = nvrt
-        while ilow < iupp - 1
-            imid = ilow + (iupp-ilow) ÷ 2
-            if vertex(points, ivec[imid], iy) < ymin
-                ilow = imid
-            else
-                iupp = imid
-            end
-        end
-        while ilow > 0 && vertex(points, ivec[ilow], iy) >= ymin
-            ilow = ilow - 1
-        end
-
+        ilow = searchfirst(points, iy, iyperm, ymin)
         #------------------------------- calc. edge-intersection
-        # loop over all points with y ∈ [ymin,ymax]
-        for jpos = ilow+1:nvrt
-            # bnds[jpos] && continue
-            ypos = vertex(points, ivec[jpos], iy)
+        # loop over all points with y ∈ [ymin,ymax)
+        for jpos = ilow:nvrt
+            jorig = iyperm[jpos]
+            ypos = vertex(points, jorig, iy)
             ypos > ymax && break 
-            xpos = vertex(points, ivec[jpos], ix)
+            xpos = vertex(points, jorig, ix)
 
             if xpos >= xmin
                 if xpos <= xmax
@@ -140,31 +109,48 @@ function inpoly2!(points, ivec, poly, flip::Bool, vepsx::T, vepsy::T, stat::S) w
                     mul2 = xdel * (ypos - yone)
                     if abs(mul2 - mul1) <= feps
                         #------- distance from line through edge less veps
-                        if !(xdel * (xpos - xone) < ydel * (yone - ypos) &&
-                             hypot(xpos- xone, ypos - yone) > veps ||
-                             xdel * (xpos - xtwo) > ydel * (ytwo - ypos) &&
-                             hypot(xpos- xtwo, ypos - ytwo) > veps)
+                        mul3 = xdel * (2xpos-xone-xtwo) + ydel * (2ypos-yone-ytwo)
+                        if abs(mul3) <= xysq ||
+                           hypot(xpos- xone, ypos - yone) <= veps ||
+                           hypot(xpos- xtwo, ypos - ytwo) <= veps
                             # ---- round boundaries around endpoints of edge
-                            setonbounds!(poly, stat, jpos, epos)
+                            setonbounds!(poly, stat, jorig, epos)
                         end
                         if mul1 < mul2 && yone <= ypos < ytwo
                             #----- left of line && ypos exact to avoid multiple counting
-                            flipio!(poly, stat, jpos, epos)
+                            flipio!(poly, stat, jorig, epos)
                         end
                     elseif mul1 < mul2 && yone <= ypos < ytwo
                         #----- left of line && ypos exact to avoid multiple counting
-                        flipio!(poly, stat, jpos, epos)
+                        flipio!(poly, stat, jorig, epos)
                     end
                 end
             else # xpos < xmin - left of bounding box
                 if yone <= ypos <  ytwo
                     #----- ypos exact to avoid multiple counting
-                    flipio!(poly, stat, jpos, epos)
+                    flipio!(poly, stat, jorig, epos)
                 end
             end
         end
     end
     stat
+end
+
+"""
+    search lowest iy coordinate >= ymin
+"""
+function searchfirst(points::PointsInbound, iy::Integer, iyperm, ymin)
+    ilow = 0
+    iupp = length(points) + 1
+    @inbounds while ilow < iupp - 1
+        imid = ilow + (iupp-ilow) >>> 0x01
+        if vertex(points, iyperm[imid], iy) < ymin
+            ilow = imid
+        else
+            iupp = imid
+        end
+    end
+    iupp
 end
 
 """

@@ -56,7 +56,9 @@ to enjoy.
 
 using PolygonInbounds
 
-polydemo.(1:5);
+polydemo(1, tol=0.2, r = 10^5);
+
+polydemo.(2:5);
 
 points = [0.05 0.0; 1 1; -1 1]
 nodes =  [0.0 0; 0 10; 10 10; 10 0]
