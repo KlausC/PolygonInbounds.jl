@@ -295,8 +295,12 @@ function pushpoint!(res, k, p)
     nothing
 end
 
-boxof1(bmin, bmax, x, k) = Int(floor((x - bmin) / (bmax - bmin) * k)) + 1
-clip(a, b, c) = a < b ? 0 : a > c ? 0 : a
+function boxof1(bmin, bmax, x, k)
+    bmax <= bmin ? 1 : Int(floor((x - bmin) / (bmax - bmin) * k)) + 1
+end
+function clip(a, b, c)
+    a < b ? 0 : a > c ? 0 : a
+end
 
 function boxof2(box::Box, x, y)
     kx = boxof1(box.bmin[1], box.bmax[1], x, box.div[1])
