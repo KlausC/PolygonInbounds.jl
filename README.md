@@ -36,14 +36,15 @@ of the polygon is less than `tol = max(atol, rtol*sizefactor)`.
 The polygon may be unconnected and self-overlapping.
 
 #### New feature:
-Each edge may be associated with one or more area codes, which are stored in adjacent
+Each edge may be associated with one or more area indices, which are stored in adjacent
 columns of `edges[:,3:end]`. If there is more than one additional area colum,
 the output array becomes 3-dimensional with elements `stats[:,1:2,area]`. Here `area`
 are the area indices as stored in the additional columns of `edges`.
 
 The definitions of "inside" and "on-boundary" related to an area consider only edges,
 which have this area associated in one of the added columns of `edges`.
-Area index `0` indicates unused.
+Area index `0` indicates unused. It is possible to assign each edge to zero, one, or
+more areas in this way.
 
 The `polydemo` functions produce plots of some selected examples and may be used
 to enjoy.
