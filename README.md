@@ -55,7 +55,10 @@ to enjoy.
 
 ]add //https://github.com/KlausC/PolygonInbounds.jl
 
+using Plots
 using PolygonInbounds
+using .Demo
+Demo.setplot(Plots)
 
 polydemo(1, tol=0.2, r = 10^5);
 
