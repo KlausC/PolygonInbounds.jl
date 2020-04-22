@@ -3,12 +3,8 @@ uuid = "e4521ec6-8c1d-418e-9da2-b3bc4ae105d6"
 authors = ["Klaus Crusius <klaus.crusius@web.de>"]
 version = "0.1.0"
 
-[deps]
-Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
-
 [compat]
 julia = "1"
-Plots = "1"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"

@@ -1,6 +1,21 @@
 
-using Plots
+module Demo
+using PolygonInbounds
+using PolygonInbounds: PolygonMesh, all_areas, edges_dict_for_area, vertex
+
 export polydemo
+struct Dummy end
+
+Base.getproperty(::Dummy,::Symbol) = dummy(a...;kw...) = nothing
+setplot(x) = global Plot = x
+
+Plot = Dummy()
+plot(a...;kw...) = Plot.plot(a...;kw...)
+plot!(a...;kw...) = Plot.plot!(a...;kw...)
+scatter(a...;kw...) = Plot.scatter(a...;kw...)
+scatter!(a...;kw...) = Plot.scatter!(a...;kw...)
+savefig(a...) = Plot.savefig(a...)
+display(a...) = Plot.display(a...)
 
 const PLOTARG = (legend = :topleft, size = (1024, 780))
 
@@ -267,3 +282,4 @@ function loadmsh(file)
     res(nodes), res(edges)
 end
 
+end # Demo

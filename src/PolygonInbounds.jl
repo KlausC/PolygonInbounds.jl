@@ -1,6 +1,6 @@
 module PolygonInbounds
 
-export inpoly2
+export inpoly2, Demo
 
 include("generic.jl")
 include("utilities.jl")
