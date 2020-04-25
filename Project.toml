@@ -1,7 +1,7 @@
 name = "PolygonInbounds"
 uuid = "e4521ec6-8c1d-418e-9da2-b3bc4ae105d6"
 authors = ["Klaus Crusius <klaus.crusius@web.de>"]
-version = "0.1.0"
+version = "0.2.0"
 
 [compat]
 julia = "1"
