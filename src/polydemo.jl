@@ -215,7 +215,7 @@ end
 
 function plotpoints(p, xpos, ypos, stat)
     function sca(ina, color=:black, mshape=:cross)
-        scatter!(p, xpos[ina], ypos[ina], markershape=mshape, markersize=ms, color=color)
+        scatter!(p, xpos[ina], ypos[ina]; markershape=mshape, markersize=ms, color=color)
     end
 
     ms = 1.0
@@ -226,7 +226,7 @@ function plotpoints(p, xpos, ypos, stat)
         ina = inside .& (!).(onbound)
         inb = inside .& onbound
 
-        sca(ina, :green)
+        sca(ina, area == 1 ? :green : :brown)
         sca(inb, :yellow)
     end
     if size(stat,3) > 1
