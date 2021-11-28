@@ -21,7 +21,7 @@ outside numerically.
 Expected effort of the algorithm is `(N+M)*log(M)`, where `M` is the number of points
 and `N` is the number of polygon edges.
 """
-function inpoly2(vert, node, edge=zeros(Int); atol::T=0.0, rtol::T=NaN, outformat=InOnBit) where T<:AbstractFloat
+function inpoly2(vert, node, edge=zeros(Int); atol::T=0.0, rtol::T=NaN, iyperm=nothing, outformat=InOnBit) where T<:AbstractFloat
 
     rtol = !isnan(rtol) ? rtol : iszero(atol) ? eps(T)^0.85 : zero(T)
     poly = PolygonMesh(node, edge)
@@ -42,7 +42,9 @@ function inpoly2(vert, node, edge=zeros(Int); atol::T=0.0, rtol::T=NaN, outforma
 
     dvert = vmax - vmin
     ix = dvert[1] < dvert[2] ? 1 : 2
-    iyperm = sortperm(points, 3 - ix)
+    if isnothing(iyperm)
+        iyperm = sortperm(points, 3 - ix)
+    end
 
     inpoly2!(points, iyperm, poly, ix, tol, stat)
 
