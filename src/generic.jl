@@ -248,21 +248,35 @@ function checkarguments(nodes, edges::AbstractVector{<:Integer})
     nothing
 end
 function checkarguments(nodes, edges::AbstractMatrix{<:Integer})
+    # return nothing
     checknodes(nodes)
     n, m = size(edges)
+    nl = size(nodes, 1)
     m >= 2 || throw(ArgumentError("edges matrix requires at least 2 columns"))
     m <= 5 || throw(ArgumentError("edges matrix accepts at most 3 area columns"))
     mi, ma = extrema(view(edges, :, 1:2))
-    0 < mi <= ma <= n || throw(ArgumentError("invalid edge indices"))
+    0 < mi <= ma <= nl || throw(ArgumentError("invalid edge indices"))
     if m > 2
         mi, ma = extrema(view(edges, :, 3:m))
         0 <= mi <= 4096 || throw(ArgumentError("invalid area indices ($mi, $ma)"))
     end
+    s = BitSet()
     if m <= 2 || m == 3 && mi == ma
-        check(i) = isperm(view(edges, :, i)) ||
-        throw(ArgumentError("edges column $i is no permutation"))
-        check(1)
-        check(2)
+        for x in view(edges, :, 1:2)
+            toggle!(s, x)
+        end
+        isempty(s) || throw(ArgumentError("all nodes in edges must appear in pairs"))
+    else
+        A = setdiff(unique(view(edges, :, 3:m)), [0])
+        for a in A
+            p = [i for i in 1:n if a in edges[i, 3:m]]
+            for x in view(edges, p, 1:2)
+                toggle!(s, x)
+            end
+            isempty(s) || throw(ArgumentError("all nodes of area $a must appear in pairs"))
+        end
     end
     nothing
 end
+
+toggle!(s::BitSet, i::Integer) = i in s ? delete!(s, i) : push!(s, i)
